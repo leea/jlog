@@ -129,6 +129,11 @@ cdef class JLogReader(BaseJLog):
       raise JLogError("jlog reader failed to open subscriber %s@%s" % \
           (subscriber, path), JLogReader.error_msg())
 
+  def close(self):
+    if self.ctx_initialized:
+      cjlog.jlog_ctx_close(self.ctx)
+      self.ctx_initialized = False
+    return self
 
   def __dealloc__(self):
     if self.ctx_initialized:
@@ -158,12 +163,6 @@ cdef class JLogReader(BaseJLog):
     error = cjlog.jlog_ctx_read_message(self.ctx, &self.begin, &msg)
     if error:
       raise JLogError("jlog_ctx_read_message", JLogReader.error_msg())
-
-    # checkpoint the read since we don't know when the caller will stop or
-    # we could have an exception
-    # XXX - make checkpoint happen on exceptions, dealloc. Calling it every
-    #       read is slow
-    cjlog.jlog_ctx_read_checkpoint(self.ctx, &self.begin)
 
     pystr = PyString_FromStringAndSize(<char *>msg.mess, msg.mess_len)
 
@@ -207,6 +206,9 @@ cdef class JLogReader(BaseJLog):
     cjlog.jlog_ctx_read_checkpoint(self.ctx, &self.begin)
     return True
 
+  def checkpoint(self):
+     cjlog.jlog_ctx_read_checkpoint(self.ctx, &self.begin)
+     return self
 
   def error_msg(self):
     return PyString_FromString(cjlog.jlog_ctx_err_string(self.ctx))
